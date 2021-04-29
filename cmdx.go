@@ -320,7 +320,7 @@ func (c *Cmd) Status() CmdStatus {
 }
 
 func (c *Cmd) Pid() int {
-	if c.status <= CmdRunning {
+	if c.status == CmdInit {
 		return -1
 	}
 	return c.cmd.ProcessState.Pid()
