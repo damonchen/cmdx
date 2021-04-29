@@ -45,8 +45,7 @@ type tickWriter struct {
 	w io.Writer
 }
 
-// NewTickWriter new tick writer
-func NewTickWriter(tick chan struct{}, w io.Writer) *tickWriter {
+func newTickWriter(tick chan struct{}, w io.Writer) *tickWriter {
 	return &tickWriter{
 		tick: tick,
 		w:    w,
@@ -139,6 +138,7 @@ type Cmd struct {
 	env          []string
 	timeout      int
 	killChildren bool
+	tickSignal   bool
 
 	cmd *exec.Cmd
 
@@ -228,12 +228,17 @@ func WithKillChildren() CmdOption {
 	}
 }
 
+func WithTickSignal() CmdOption {
+	return func(c *Cmd) {
+		c.tickSignal = true
+	}
+}
+
 // NewCmd new cmd
 func NewCmd(name string, opts ...CmdOption) *Cmd {
 	cmd := &Cmd{
 		status: CmdInit,
 		ctx:    context.Background(),
-		tick:   make(chan struct{}),
 		name:   name,
 	}
 
@@ -247,7 +252,9 @@ func NewCmd(name string, opts ...CmdOption) *Cmd {
 func (c *Cmd) completed() {
 	c.mu.Lock()
 	c.closed = true
-	close(c.tick)
+	if c.tick != nil {
+		close(c.tick)
+	}
 	c.mu.Unlock()
 
 	if c.stdoutTickWriter != nil {
@@ -276,6 +283,10 @@ func (c *Cmd) Done() <-chan struct{} {
 
 // Tick tick chan, when data write to stdout or stderr, it will a tick for outer process data
 func (c *Cmd) Tick() <-chan struct{} {
+	if !c.tickSignal {
+		return nil
+	}
+
 	c.mu.Lock()
 	t := c.tick
 	c.mu.Unlock()
@@ -314,6 +325,10 @@ func (c *Cmd) newCmd() *exec.Cmd {
 		c.ctx = ctx
 	}
 
+	if c.tickSignal {
+		c.tick = make(chan struct{})
+	}
+
 	cmd := exec.CommandContext(c.ctx, c.name, c.args...)
 
 	if c.killChildren {
@@ -321,13 +336,21 @@ func (c *Cmd) newCmd() *exec.Cmd {
 	}
 
 	if c.stdout != nil {
-		c.stdoutTickWriter = NewTickWriter(c.tick, c.stdout)
-		cmd.Stdout = c.stdoutTickWriter
+		if c.tickSignal {
+			c.stdoutTickWriter = newTickWriter(c.tick, c.stdout)
+			cmd.Stdout = c.stdoutTickWriter
+		} else {
+			cmd.Stdout = c.stdout
+		}
 	}
 
 	if c.stderr != nil {
-		c.stderrTickWriter = NewTickWriter(c.tick, c.stderr)
-		cmd.Stdout = c.stderrTickWriter
+		if c.tickSignal {
+			c.stderrTickWriter = newTickWriter(c.tick, c.stderr)
+			cmd.Stderr = c.stderrTickWriter
+		} else {
+			cmd.Stderr = c.stderr
+		}
 	}
 	cmd.Stdin = c.stdin
 	return cmd
