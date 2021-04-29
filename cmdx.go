@@ -319,6 +319,13 @@ func (c *Cmd) Status() CmdStatus {
 	return s
 }
 
+func (c *Cmd) Pid() int {
+	if c.status <= CmdRunning {
+		return -1
+	}
+	return c.cmd.ProcessState.Pid()
+}
+
 // Time total time of cmd run, return 0 if not start running
 func (c *Cmd) Time() time.Duration {
 	if c.status <= CmdRunning {
