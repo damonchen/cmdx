@@ -14,6 +14,10 @@ func main() {
 	t := time.Now()
 	go func() {
 		var buff [20]byte
+		defer func() {
+			pid := cmd.Pid()
+			fmt.Println(pid)
+		}()
 
 		tick := cmd.Tick()
 		for {
@@ -31,7 +35,7 @@ func main() {
 					fmt.Println("read error", err, time.Since(t))
 					return
 				}
-				fmt.Println(string(buff[:]))
+				fmt.Println(string(buff[:]), cmd.Pid())
 			}
 		}
 	}()
