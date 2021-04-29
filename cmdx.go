@@ -133,6 +133,9 @@ type Cmd struct {
 	stderrClose      closeFunc
 	stderrTickWriter *tickWriter
 
+	startTime time.Time
+	endTime   time.Time
+
 	args         []string
 	dir          string
 	env          []string
@@ -316,6 +319,14 @@ func (c *Cmd) Status() CmdStatus {
 	return s
 }
 
+// Time total time of cmd run, return 0 if not start running
+func (c *Cmd) Time() time.Duration {
+	if c.status <= CmdRunning {
+		return 0
+	}
+	return c.endTime.Sub(c.startTime)
+}
+
 func (c *Cmd) newCmd() *exec.Cmd {
 	// it will be sure to kill all the child and grand children processes when using kill function
 	if c.timeout != 0 {
@@ -371,6 +382,8 @@ func (c *Cmd) Run() error {
 	c.status = CmdRunning
 	c.mu.Unlock()
 
+	c.startTime = time.Now()
+
 	var runErr error
 	done := make(chan struct{})
 	go func() {
@@ -396,6 +409,7 @@ func (c *Cmd) Run() error {
 		c.mu.Unlock()
 		err = &TimeoutError{timeout: c.timeout}
 	}
+	c.endTime = time.Now()
 	return err
 }
 

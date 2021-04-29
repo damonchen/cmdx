@@ -40,7 +40,7 @@ func main() {
 	if err != nil {
 		fmt.Println(err, time.Since(t))
 	}
-	fmt.Println("since", time.Since(t), cmd.Status())
+	fmt.Println("since", time.Since(t), cmd.Status(), cmd.Time().Seconds())
 	time.Sleep(time.Second)
 	return
 }
